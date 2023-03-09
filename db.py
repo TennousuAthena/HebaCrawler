@@ -1,13 +1,16 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy import Column, Integer, String
 
 engine = create_engine('sqlite:///data/results.db', echo=True)
 # 映射基类
 Base = declarative_base()
+Session = sessionmaker(bind=engine)
+session = Session()
 
 
 class Status(Base):
+    """当前Bot状态记录"""
     __tablename__ = 'status'
 
     id = Column(Integer, primary_key=True)
@@ -16,9 +19,10 @@ class Status(Base):
 
 
 class Thread(Base):
+    """帖子信息记录"""
     __tablename__ = 'threads'
 
-    TId = Column(Integer, primary_key=True)
+    tId = Column(Integer, primary_key=True)
     Title = Column(String(256))
     Href = Column(String(64))
     Author = Column(String(16))
@@ -26,6 +30,7 @@ class Thread(Base):
 
 
 class Comment(Base):
+    """帖子回复"""
     __tablename__ = 'comments'
 
     Pid = Column(Integer, primary_key=True)
@@ -36,6 +41,7 @@ class Comment(Base):
 
 
 class SmallComment(Base):
+    """楼中楼信息"""
     __tablename__ = 'small_comments'
 
     SPid = Column(Integer, primary_key=True)
@@ -45,5 +51,4 @@ class SmallComment(Base):
     CreatedAt = Column(Integer)
 
 
-# 创建表
 Base.metadata.create_all(engine)

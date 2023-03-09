@@ -1,17 +1,19 @@
+import time
 import requests
 import csv
 from lxml import etree
 
+from db import *
+
 
 class Tieba(object):
     def __init__(self, name):
+        self.session = None
         self.url = f'https://tieba.baidu.com/f?kw={name}'
         self.headers = {
             'User-Agent': '/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
             # 'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1) '     #  低端浏览器没有被<!--  -->注释掉
         }
-        self.f = open('result.csv', 'w', encoding='utf-8-sig', newline="")
-        self.csv_write = csv.writer(self.f)
 
     def get_data(self, url):
         response = requests.get(url, headers=self.headers)
@@ -25,10 +27,9 @@ class Tieba(object):
         # el_list = el_html.xpath('//*[@id="thread_list"]/li/div/div[2]/div[1]/div[1]/a')  #  此处输出的是对象
         el_list = el_html.xpath('//*[@id="thread_list"]/li/div')  # 此处输出的是对象
         if not len(el_list):
-            print("请求被拦截")
+            print("请求被拦截，请尝试更换代理")
             exit()
         print(len(el_list))
-        # exit()
         data_list = []
         for el in el_list:
             tmp = {}
@@ -60,8 +61,6 @@ class Tieba(object):
             a.append(headers)
         header = a  # 把列名给提取出来，用列表形式呈现
         print(a)
-        self.csv_write.writerow(['title', 'href', 'author', 'reviewer', 'last_comment_time', 'comment'])
-        # self.csv_write.writerow(a)
 
         try:
             # next_url = 'https' + el_html.xpath('//a[@class="next pagination-item "]/@href')
@@ -71,29 +70,37 @@ class Tieba(object):
         return data_list, next_url, header
 
     def save_data(self, data_list, header):
-
+        for 帖子 in data_list:
+            print(帖子)
+            try:
+                帖子['comment'] = 帖子['comment'].strip().replace('\r', '').replace('\n', '')
+                tid = int(帖子['href'].split('/')[-1])
+                if not session.query(Thread).where(Thread.tId == tid).first():
+                    author = '' if not 帖子['author'] else 帖子['author']
+                    new_thread = Thread(tId=tid, Title=帖子['title'], Href=帖子['href'],
+                                        Author=author, Content=帖子['comment'])
+                    session.add(new_thread)
+                    session.commit()
+            except Exception as e:
+                print('Failed on saving data ' + e)
         for data in data_list:
             print(data)
-            try:
-                data['last_comment_time'] = data['last_comment_time'].replace('\r', '').replace('\n', '').strip()
-                data['comment'] = data['comment'].strip().replace('\r', '').replace('\n', '')
-            except:
-                print('list')
-            self.csv_write.writerow(
-                [data['title'], data['href'], data['author'], data['reviewer'], data['last_comment_time'],
-                 data['comment']])
 
     def run(self):
         next_url = self.url
+        self.session = Session(bind=engine)
         while True:
             #  发送请求，获取响应
             data = self.get_data(next_url)
             #  从响应中提取数据（数据和翻页用的url）
             data_list, next_url, a = self.parse_data(data)
+            print(data_list)
             self.save_data(data_list, a)
+
             #  判断是否终结
             if next_url is None:
                 break
+            time.sleep(30)
 
 
 if __name__ == '__main__':
